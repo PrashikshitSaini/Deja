@@ -141,6 +141,17 @@ source ~/.zshrc
 deja doctor
 ```
 
+### macOS security notice
+
+The v0.3.0 macOS binaries are not yet Apple Developer ID signed or notarized.
+After verifying the release checksum, macOS users who choose to continue may
+need to approve Deja under **System Settings → Privacy & Security → Open
+Anyway**. Apple explains the risk and override process in its
+[support guide](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
+
+Do not disable Gatekeeper globally. Building from source is also supported
+below for users who prefer a locally compiled binary.
+
 ## Build and try the source checkout
 
 The following commands keep build caches, temporary files, the binary, and the
@@ -555,178 +566,16 @@ rm -f "${XDG_DATA_HOME:-$HOME/.local/share}/deja/history.jsonl.lock"
 Review paths before deleting them, especially when `DEJA_CONFIG`, `DEJA_STORE`,
 or the XDG variables are customized.
 
-## Development
+## Contributing
 
-All standard checks can keep their generated state inside the checkout:
-
-```zsh
-mkdir -p .cache/go-build .cache/go-mod .tmp
-
-GOCACHE="$PWD/.cache/go-build" \
-GOMODCACHE="$PWD/.cache/go-mod" \
-TMPDIR="$PWD/.tmp" \
-go test -race ./...
-
-GOCACHE="$PWD/.cache/go-build" \
-GOMODCACHE="$PWD/.cache/go-mod" \
-TMPDIR="$PWD/.tmp" \
-go vet ./...
-
-zsh -n shell/deja.zsh
-```
-
-Build the current platform binary:
-
-```zsh
-GOCACHE="$PWD/.cache/go-build" \
-GOMODCACHE="$PWD/.cache/go-mod" \
-TMPDIR="$PWD/.tmp" \
-go build -trimpath -o ./bin/deja ./cmd/deja
-```
-
-## Packaging releases
-
-[`scripts/package.sh`](./scripts/package.sh) cross-compiles release archives for
-four targets:
-
-- `darwin/arm64`
-- `darwin/amd64`
-- `linux/arm64`
-- `linux/amd64`
-
-Create every archive and the SHA-256 checksum manifest:
-
-```zsh
-./scripts/package.sh
-```
-
-Artifacts are written to `dist/`:
-
-```text
-dist/
-├── checksums-v0.3.0.txt
-├── deja-v0.3.0-darwin-amd64.tar.gz
-├── deja-v0.3.0-darwin-arm64.tar.gz
-├── deja-v0.3.0-linux-amd64.tar.gz
-└── deja-v0.3.0-linux-arm64.tar.gz
-```
-
-Build only selected targets:
-
-```zsh
-DEJA_TARGETS="darwin/arm64 linux/amd64" ./scripts/package.sh
-```
-
-The archive layout is:
-
-```text
-deja-v0.3.0-<os>-<arch>/
-├── bin/deja
-├── shell/deja.zsh
-├── deja.json
-├── install.sh
-├── README.md
-├── CHANGELOG.md
-└── LICENSE
-```
-
-Each binary is built with `CGO_ENABLED=0`, `-trimpath`, and stripped debug
-symbols. Go build caches and staging directories remain inside this checkout.
-
-### Test an archive before publishing
-
-Use an archive matching the current machine:
-
-```zsh
-mkdir -p .tmp/release-smoke
-tar -xzf dist/deja-v0.3.0-darwin-arm64.tar.gz -C .tmp/release-smoke
-.tmp/release-smoke/deja-v0.3.0-darwin-arm64/bin/deja version
-```
-
-Run `doctor`, source the packaged plugin in a disposable Zsh, and confirm that
-typing a known family opens the palette before publishing.
-
-### macOS signing
-
-For public macOS downloads, sign binaries with an Apple Developer ID. The
-packager supports an optional signing identity:
-
-```zsh
-DEJA_CODESIGN_IDENTITY="Developer ID Application: Example Name (TEAMID)" \
-  ./scripts/package.sh
-```
-
-The script applies hardened-runtime signing before creating each macOS archive.
-Apple notarization is a separate release step and requires App Store Connect
-credentials. Homebrew distribution can avoid asking users to manage raw
-downloaded binaries directly.
-
-### Publish a GitHub release
-
-A practical release flow is:
-
-1. Update `const version` in `cmd/deja/main.go` and all versioned README
-   examples.
-2. Run tests, vet, Zsh syntax validation, and `scripts/package.sh`.
-3. Smoke-test at least one macOS and one Linux archive.
-4. Commit the release, create a `v0.3.0` tag, and push the tag.
-5. Create a GitHub Release from that tag.
-6. Attach all four archives and `checksums-v0.3.0.txt`.
-7. Include installation instructions and notable changes in the release notes.
-8. Optionally sign the checksum file with GPG or Sigstore.
-
-Deja is released under the MIT License. Keep `LICENSE` in source archives and
-binary distributions; the packaging script includes it automatically.
-
-### Homebrew distribution
-
-After the source is hosted at a stable public URL, a Homebrew formula can build
-Deja from a tagged source archive:
-
-```ruby
-class Deja < Formula
-  desc "Private, local command-history palette for Zsh"
-  homepage "https://github.com/PrashikshitSaini/Deja"
-  url "https://github.com/PrashikshitSaini/Deja/archive/refs/tags/v0.3.0.tar.gz"
-  sha256 "SOURCE_ARCHIVE_SHA256"
-  license "MIT"
-
-  depends_on "go" => :build
-
-  def install
-    system "go", "build", "-trimpath", "-o", bin/"deja", "./cmd/deja"
-    pkgshare.install "shell", "deja.json", "README.md"
-  end
-
-  def caveats
-    <<~EOS
-      Add this to ~/.zshrc:
-        source "#{opt_pkgshare}/shell/deja.zsh"
-    EOS
-  end
-
-  test do
-    assert_match version.to_s, shell_output("#{bin}/deja version")
-  end
-end
-```
-
-Host the formula in a tap repository such as `PrashikshitSaini/homebrew-tap`; users can
-then install with:
-
-```zsh
-brew tap PrashikshitSaini/tap
-brew install deja
-```
-
-The plugin first looks for its bundled binary and then checks `PATH`, so the
-Homebrew `bin/deja` layout works without modifying the formula's `pkgshare`
-directory.
+Bug reports and pull requests are welcome. See
+[CONTRIBUTING.md](./CONTRIBUTING.md) for the local development checks. Release
+engineering is documented separately in [docs/RELEASING.md](./docs/RELEASING.md).
 
 ## License
 
 Deja is available under the [MIT License](./LICENSE).
 
 ```text
-Copyright (c) 2026 Deja contributors
+Copyright (c) 2026 Prashikshit Saini
 ```
