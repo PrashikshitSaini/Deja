@@ -1,0 +1,12 @@
+/bin/deja
+/bin/deza
+/.cache/
+/.tmp/
+/.deja-dev/
+/.deza-dev/
+/dist/
+*.test
+coverage.out
+*.jsonl
+*.jsonl.lock
+.DS_Store
