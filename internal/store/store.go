@@ -64,6 +64,9 @@ func liveIdentity(command string, occurredAt float64) string {
 	if occurredAt <= 0 {
 		return "live:" + hash(command, strconv.FormatInt(time.Now().UnixNano(), 10))
 	}
+	// Truncated to whole seconds so a live-recorded event deduplicates
+	// against the same entry later re-imported from EXTENDED_HISTORY,
+	// which stores integer timestamps.
 	return "run:" + hash(command, strconv.FormatInt(int64(occurredAt), 10))
 }
 

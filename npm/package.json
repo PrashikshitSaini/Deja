@@ -1,0 +1,38 @@
+{
+  "name": "deja",
+  "version": "0.3.0",
+  "description": "Your shell remembers every command. Deja helps you find the right one. A fast, local-only Zsh command palette.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PrashikshitSaini/Deja.git"
+  },
+  "homepage": "https://github.com/PrashikshitSaini/Deja#readme",
+  "bugs": "https://github.com/PrashikshitSaini/Deja/issues",
+  "keywords": [
+    "zsh",
+    "shell",
+    "history",
+    "command-palette",
+    "cli",
+    "terminal",
+    "autocomplete"
+  ],
+  "os": ["darwin", "linux"],
+  "cpu": ["arm64", "x64"],
+  "bin": {
+    "deja": "./bin/deja.js"
+  },
+  "scripts": {
+    "postinstall": "node ./install.js"
+  },
+  "files": [
+    "install.js",
+    "bin/deja.js",
+    "shell/deja.zsh",
+    "deja.json"
+  ],
+  "engines": {
+    "node": ">=14"
+  }
+}

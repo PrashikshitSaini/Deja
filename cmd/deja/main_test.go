@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -143,7 +144,7 @@ func TestZshPaletteWindowFollowsSelectionBeyondVisibleRows(t *testing.T) {
 	}
 	script := strings.Join([]string{
 		"typeset -gx DEJA_BIN=/usr/bin/true",
-		"source " + plugin,
+		"source " + strconv.Quote(plugin),
 		`_deja_candidate_lines=(one two three four five six seven eight nine ten)`,
 		`_deja_visible_rows=6`,
 		`_deja_selected=7`,
