@@ -17,12 +17,12 @@ Just your history, made useful.**
 ```text
 $ git
 Deja · 1-6 of 32 variants · ↑/↓ scroll · Tab insert
-› 🔴 git [push]                                      ×24
-  🔻 git [commit] [-m] [<message>]                   ×22
-  🔶 git [commit] [-m] [<message>] [-m] [<message>]  ×10
-  ⭐ git [push] [origin] [main]                       ×6
-  · git [status]                                     ×6
-  · git [commit] [-am] [<message>]                   ×4
+›  1  git [push]                                      ×24
+   2  git [commit] [-m] [<message>]                   ×22
+   3  git [commit] [-m] [<message>] [-m] [<message>]  ×10
+   4  git [push] [origin] [main]                       ×6
+   5  git [status]                                     ×6
+   6  git [commit] [-am] [<message>]                   ×4
 ```
 
 Unlike one-result-at-a-time history search, Deja shows you the possibilities
@@ -90,7 +90,7 @@ infrastructure — Deja is built for exactly that.**
 - Scrolls a viewport through a large ranked candidate pool (up to 100+ rows).
 - Redacts reusable values such as old Git commit messages before display.
 - Hides commands by family, prefix, or regular expression.
-- Configurable rank markers, ANSI colors, row count, and metadata.
+- Dim rank numbers, ANSI colors, row count, and metadata are configurable.
 - User-private event store, lock, and result files.
 
 ## Safety contract
@@ -225,17 +225,17 @@ The palette updates as the editable buffer changes.
 ### Reading a result row
 
 ```text
-🔴 git [status] [--short]  ×8 · 100% ok · here
+ 1  git [status] [--short]  ×8 · 100% ok · here
 ```
 
-- `🔴` — rank marker (top-ranked variant)
+- `1` — rank position (dim; the top row is the best-ranked variant)
 - `[brackets]` — tokens that differ between visible variants
 - `×8` — this variant occurred eight times
 - `100% ok` — recorded success rate where exit statuses exist
 - `here` — has been run in the current directory
 
-ZLE sanitizes raw ANSI sequences, so the live palette uses geometric markers;
-the CLI (`deja query --color always`) renders full ANSI colors.
+ZLE sanitizes raw ANSI sequences, so the live palette uses a plain dim rank
+number; the CLI (`deja query --color always`) renders full ANSI colors.
 
 ## How ranking works
 

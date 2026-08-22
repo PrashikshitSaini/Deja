@@ -32,34 +32,6 @@ func ANSI(name string) string {
 	return ansiColors[name]
 }
 
-// Symbol provides color that ZLE can render safely in its message area. ZLE
-// escapes raw terminal control bytes, so the live palette uses colored Unicode
-// markers while direct CLI output can use ANSI.
-func Symbol(name string) string {
-	switch name {
-	case "dark-red":
-		return "🔴"
-	case "red", "bright-red":
-		return "🔻"
-	case "orange":
-		return "🔶"
-	case "gold", "yellow", "bright-yellow":
-		return "⭐"
-	case "green":
-		return "✅"
-	case "cyan", "blue":
-		return "🔵"
-	case "magenta":
-		return "🔷"
-	case "black", "gray":
-		return "⚫"
-	case "white":
-		return "⚪"
-	default:
-		return "·"
-	}
-}
-
 func Names() []string {
 	names := make([]string, 0, len(ansiColors))
 	for name := range ansiColors {

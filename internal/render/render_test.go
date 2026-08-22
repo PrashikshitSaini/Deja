@@ -81,17 +81,16 @@ func TestRowsApplyColorsByRank(t *testing.T) {
 	}
 }
 
-func TestRowsUseTerminalSafeRankSymbolsForZLE(t *testing.T) {
+func TestRowsUseTerminalSafeRankNumbersForZLE(t *testing.T) {
 	candidates := []model.Candidate{
 		{Command: "git status", Uses: 4},
 		{Command: "git push", Uses: 2},
 	}
 	options := DefaultOptions(false)
 	options.RankSymbols = true
-	options.RankColors = []string{"dark-red", "orange"}
 	rows := Rows(candidates, options)
-	if !strings.HasPrefix(rows[0], "🔴 ") || !strings.HasPrefix(rows[1], "🔶 ") {
-		t.Fatalf("rank symbols = %#v", rows)
+	if !strings.HasPrefix(rows[0], " 1 ") || !strings.HasPrefix(rows[1], " 2 ") {
+		t.Fatalf("rank numbers = %#v", rows)
 	}
 	if strings.Contains(rows[0], "\x1b") || strings.Contains(rows[1], "\x1b") {
 		t.Fatalf("ZLE-safe rows contain ANSI controls: %#v", rows)

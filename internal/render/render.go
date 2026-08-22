@@ -309,7 +309,7 @@ func Rows(candidates []model.Candidate, options Options) []string {
 		}
 		cells := make([]cell, 0, len(command)+len(separator)+len(metadata)+2)
 		if options.RankSymbols {
-			cells = appendCells(cells, theme.Symbol(base)+" ", roleBase)
+			cells = appendCells(cells, fmt.Sprintf("%2d ", index+1), roleMetadata)
 		}
 		cells = append(cells, command...)
 		cells = append(cells, separator...)

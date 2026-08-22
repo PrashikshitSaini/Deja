@@ -254,7 +254,7 @@ func TestCLIConfigRedactsAndAggregatesCommitMessages(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("ZLE query code = %d, stderr = %q", code, stderr.String())
 	}
-	if strings.Contains(stdout.String(), "\x1b") || !strings.HasPrefix(stdout.String(), "__DEJA_META__\t6\n🔴") {
+	if strings.Contains(stdout.String(), "\x1b") || !strings.HasPrefix(stdout.String(), "__DEJA_META__\t6\n 1 ") {
 		t.Fatalf("ZLE output is not terminal-safe themed text: %q", stdout.String())
 	}
 }
