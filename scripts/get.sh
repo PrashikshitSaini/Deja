@@ -6,7 +6,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/PrashikshitSaini/Deja/main/scripts/get.sh | sh
 #
 # Environment overrides:
-#   DEJA_VERSION   Install a specific version, e.g. v0.3.0 (default: latest release)
+#   DEJA_VERSION   Install a specific version, e.g. v0.3.1 (default: latest release)
 #   DEJA_INSTALL_DIR  Installation root (default: ${XDG_DATA_HOME:-$HOME/.local/share}/deja)
 #   DEJA_BIN_DIR      Where the `deja` symlink is placed (default: $HOME/.local/bin)
 
@@ -57,16 +57,52 @@ fi
 
 PACKAGE="deja-${VERSION}-${os}-${arch}"
 URL="https://github.com/$REPO/releases/download/${VERSION}/${PACKAGE}.tar.gz"
+CHECKSUMS_URL="https://github.com/$REPO/releases/download/${VERSION}/checksums-${VERSION}.txt"
 
 TMPDIR_DEJA=$(mktemp -d)
 trap 'rm -rf "$TMPDIR_DEJA"' EXIT HUP INT TERM
+ARCHIVE="$TMPDIR_DEJA/${PACKAGE}.tar.gz"
+CHECKSUMS="$TMPDIR_DEJA/checksums.txt"
 
 echo "Downloading Deja ${VERSION} for ${os}/${arch}..."
 if command -v curl >/dev/null 2>&1; then
-  curl -fsSL "$URL" | tar -xz -C "$TMPDIR_DEJA"
+  curl -fsSL "$URL" -o "$ARCHIVE"
+  curl -fsSL "$CHECKSUMS_URL" -o "$CHECKSUMS"
 elif command -v wget >/dev/null 2>&1; then
-  wget -qO- "$URL" | tar -xz -C "$TMPDIR_DEJA"
+  wget -qO "$ARCHIVE" "$URL"
+  wget -qO "$CHECKSUMS" "$CHECKSUMS_URL"
 fi
+
+expected=""
+while read -r digest filename; do
+  if [ "$filename" = "${PACKAGE}.tar.gz" ]; then
+    expected=$digest
+    break
+  fi
+done < "$CHECKSUMS"
+
+if [ -z "$expected" ]; then
+  echo "get.sh: release checksums do not contain ${PACKAGE}.tar.gz" >&2
+  exit 1
+fi
+
+if command -v shasum >/dev/null 2>&1; then
+  actual=$(shasum -a 256 "$ARCHIVE")
+elif command -v sha256sum >/dev/null 2>&1; then
+  actual=$(sha256sum "$ARCHIVE")
+else
+  echo "get.sh: need shasum or sha256sum to verify the release" >&2
+  exit 1
+fi
+actual=${actual%% *}
+
+if [ "$actual" != "$expected" ]; then
+  echo "get.sh: checksum verification failed for ${PACKAGE}.tar.gz" >&2
+  exit 1
+fi
+
+echo "Verified ${PACKAGE}.tar.gz"
+tar -xzf "$ARCHIVE" -C "$TMPDIR_DEJA"
 
 [ -d "$TMPDIR_DEJA/$PACKAGE" ] || {
   echo "get.sh: downloaded archive did not contain $PACKAGE" >&2

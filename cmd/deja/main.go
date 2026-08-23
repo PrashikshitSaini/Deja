@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-const version = "0.3.0"
+const version = "0.3.1"
 
 func usage(writer io.Writer) {
 	fmt.Fprintln(writer, "Deja — local command-history variants for Zsh")

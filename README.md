@@ -136,7 +136,7 @@ source "$HOME/.local/share/deja/shell/deja.zsh"
 To pin a version instead of the latest release:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/PrashikshitSaini/Deja/main/scripts/get.sh | DEJA_VERSION=v0.3.0 sh
+curl -fsSL https://raw.githubusercontent.com/PrashikshitSaini/Deja/main/scripts/get.sh | DEJA_VERSION=v0.3.1 sh
 ```
 
 > **Note:** piping curl to sh runs third-party code with your user's
@@ -150,12 +150,12 @@ Download the archive for your platform from
 verify it against `checksums.txt`, then:
 
 ```sh
-tar -xzf deja-v0.3.0-darwin-arm64.tar.gz
-cd deja-v0.3.0-darwin-arm64
+tar -xzf deja-v0.3.1-darwin-arm64.tar.gz
+cd deja-v0.3.1-darwin-arm64
 ./install.sh
 ```
 
-Available archives: `deja-v0.3.0-{darwin,linux}-{arm64,amd64}.tar.gz`.
+Available archives: `deja-v0.3.1-{darwin,linux}-{arm64,amd64}.tar.gz`.
 
 ### Build from source
 

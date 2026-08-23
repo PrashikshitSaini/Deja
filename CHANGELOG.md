@@ -7,6 +7,38 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-08-23
+
+### Added
+
+- One-line installer for macOS and Linux with automatic OS and architecture
+  detection.
+- GitHub Actions checks for macOS and Linux, plus tag-driven release packaging.
+
+### Changed
+
+- Replaced prominent emoji rank markers with compact numeric rank indicators.
+- Split the CLI entry point into focused command files without changing the
+  public command interface.
+- Reworked the README around installation, product comparisons, safety, and
+  privacy.
+
+### Fixed
+
+- Removed a forced ZLE redisplay after Tab insertion that could overwrite the
+  terminal line immediately above the prompt.
+- Quoted the Zsh integration path in tests so checkouts under paths containing
+  spaces work correctly.
+
+### Security
+
+- The remote installer now verifies every downloaded archive against the
+  release's SHA-256 checksum manifest before extraction.
+- Palette result files now live in a per-user mode-0700 runtime directory
+  instead of directly under a shared temporary directory.
+- Removed an unpublished npm installation route that could resolve to an
+  unrelated package owned by somebody else.
+
 ## [0.3.0] - 2026-07-18
 
 ### Added
@@ -40,5 +72,6 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Empty-prompt Up/Down behavior falls back to native Zsh history navigation.
 - Commands beginning with a space are excluded from live recording.
 
-[Unreleased]: https://github.com/PrashikshitSaini/Deja/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/PrashikshitSaini/Deja/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/PrashikshitSaini/Deja/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/PrashikshitSaini/Deja/releases/tag/v0.3.0
