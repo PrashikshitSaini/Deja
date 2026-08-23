@@ -143,21 +143,6 @@ curl -fsSL https://raw.githubusercontent.com/PrashikshitSaini/Deja/main/scripts/
 > privileges. Read [`scripts/get.sh`](./scripts/get.sh) first if that bothers
 > you — it is short, and every step it takes is printed above.
 
-### Install with npm
-
-```sh
-npm install -g deja
-```
-
-The postinstall step downloads the correct prebuilt binary for your platform
-from GitHub Releases and wires up the paths. Then add to `~/.zshrc`:
-
-```zsh
-export PATH="$(npm root -g)/deja/bin:$PATH"
-export DEJA_CONFIG="$(npm root -g)/deja/deja.json"
-source "$(npm root -g)/deja/shell/deja.zsh"
-```
-
 ### Manual install
 
 Download the archive for your platform from
