@@ -81,6 +81,18 @@ func TestZshIntegrationNeverBindsEnterOrExecutesASelection(t *testing.T) {
 	if !strings.Contains(text, `BUFFER="${selection}"`) {
 		t.Fatal("selection must be assigned to the editable Zsh buffer")
 	}
+	start := strings.Index(text, "function _deja_insert_selection()")
+	if start < 0 {
+		t.Fatal("selection widget is missing")
+	}
+	end := strings.Index(text[start:], "\n}\n")
+	if end < 0 {
+		t.Fatal("selection widget is not terminated")
+	}
+	widget := text[start : start+end]
+	if strings.Contains(widget, "zle redisplay") {
+		t.Fatal("selection widget must let ZLE redraw on return; forcing a second redraw corrupts message-area rows")
+	}
 }
 
 func TestZshHistoryFallbackSuppressesPaletteAndBindsActiveKeymap(t *testing.T) {

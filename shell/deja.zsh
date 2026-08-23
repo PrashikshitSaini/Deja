@@ -225,7 +225,6 @@ function _deja_insert_selection() {
   _deja_suppressed=1
   _deja_last_buffer="${BUFFER}"
   _deja_clear_palette
-  zle redisplay
 }
 
 function _deja_preexec() {
