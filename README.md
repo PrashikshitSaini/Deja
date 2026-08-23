@@ -32,48 +32,36 @@ commands.
 
 ---
 
-## Why Deja exists
+## How Deja differs
 
-Every shell history tool solves "find that command again." Most of them solve
-it by adding weight to your shell:
+Shell-history tools optimize for different workflows. `fzf` provides a fast,
+general-purpose fuzzy finder; Atuin adds a rich history database and optional
+encrypted sync; McFly provides context-aware full-screen history search; HSTR
+focuses on searching and managing history; and zsh-autosuggestions offers one
+unobtrusive ghost suggestion while you type.
 
-| | Deja | fzf + history | Atuin | McFly | zsh-autosuggestions |
-| --- | --- | --- | --- | --- | --- |
-| Shows multiple variants at once | ✅ | ❌ one at a time | ❌ list of raw lines | ❌ one at a time | ❌ single ghost line |
-| Groups duplicates into variants with counts | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Highlights what differs between variants | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Context-aware ranking (directory, success rate, recency) | ✅ | ❌ | ✅ | ✅ | ❌ |
-| Never binds Enter / never executes | ✅ | ⚠️ easy to misfire | ⚠️ replaces history widget | ❌ rebinds Enter | ✅ |
-| External daemon or background process | none | none | **daemon** (`atuin daemon`) | none | none |
-| Runtime language | native Go binary | Rust binary | Rust binary + SQLite | Rust binary | pure Zsh |
-| Database dependency | none (JSON Lines) | none | **SQLite** | SQLite | none |
-| Syncs your history to the cloud | never | never | optional (encrypted) | never | never |
-| Configuration surface | small JSON file | shell flags | TOML + sync accounts | config file | vars |
+Deja is specifically designed for comparing the ways you run a command without
+leaving the prompt. It combines:
 
-The pattern in the column is consistent: to get smarter history, existing tools
-ask you to adopt a daemon, a database, a sync account, or a rewrite of how your
-shell handles history. That is bloat if all you wanted was `git commit -am`
-with the right flags.
+- **An inline palette while you type.** Start entering `git`, `docker`, `cd`, or
+  another command family; no separate Ctrl-R interface is required.
+- **Distinct variants with usage counts.** Repeated commands are grouped while
+  meaningful flag and argument combinations remain visible side by side.
+- **Token-level difference highlighting.** Brackets identify exactly which
+  parts change between the visible variants.
+- **Local, explainable ranking.** Text match, command family, frequency,
+  current directory, success rate, and recency determine the order.
+- **Insert-only selection.** Tab places a command in the editable prompt. Deja
+  never binds Enter and never executes the selection.
+- **A deliberately small local architecture.** One static Go binary, one Zsh
+  integration, and a user-owned JSON Lines store. There is no runtime network
+  behavior or telemetry.
 
-Deja takes the opposite trade-off:
-
-- **One static binary and one Zsh script.** No daemon, no SQLite, no plugins
-  manager, no compile step on your machine.
-- **Your history stays yours.** Everything is a local JSON Lines file with
-  user-only permissions. There is no sync feature to turn off — there is no
-  network code at all.
-- **Enter is sacred.** Deja only ever edits the command line you are already
-  typing. You review it; you press Enter. It cannot run anything.
-- **Small, explainable ranking.** Six local signals — text match, family,
-  frequency, current directory, success rate, recency. No embeddings, no
-  model downloads, no mystery scores.
-
-If you want encrypted multi-machine history search, Atuin is a good tool and
-you should use it. If you want a fast general-purpose fuzzy finder, use fzf.
-If you want your last matching command as a ghost suggestion with zero setup,
-zsh-autosuggestions does that well. **If you want to see and compare the ways
-you actually run a command — locally, instantly, and without adopting new
-infrastructure — Deja is built for exactly that.**
+Use Atuin when encrypted history sync across machines is the priority. Use fzf
+when you want a programmable fuzzy finder for history, files, and other data.
+Use zsh-autosuggestions when a single low-profile suggestion is enough. Use
+Deja when you want to compare command variants directly in the prompt before
+choosing one.
 
 ---
 
