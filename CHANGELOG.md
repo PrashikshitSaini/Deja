@@ -7,6 +7,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-08-29
+
 ### Added
 
 - Automatic, configurable redaction of sensitive environment assignments such
@@ -92,6 +94,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Empty-prompt Up/Down behavior falls back to native Zsh history navigation.
 - Commands beginning with a space are excluded from live recording.
 
-[Unreleased]: https://github.com/PrashikshitSaini/Deja/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/PrashikshitSaini/Deja/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/PrashikshitSaini/Deja/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/PrashikshitSaini/Deja/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/PrashikshitSaini/Deja/releases/tag/v0.3.0

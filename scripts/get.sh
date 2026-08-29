@@ -6,7 +6,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/PrashikshitSaini/Deja/main/scripts/get.sh | sh
 #
 # Environment overrides:
-#   DEJA_VERSION   Install a specific version, e.g. v0.3.1 (default: latest release)
+#   DEJA_VERSION   Install a specific version, e.g. v0.3.2 (default: latest release)
 #   DEJA_INSTALL_DIR  Installation root (default: ${XDG_DATA_HOME:-$HOME/.local/share}/deja)
 #   DEJA_BIN_DIR      Where the `deja` symlink is placed (default: $HOME/.local/bin)
 
