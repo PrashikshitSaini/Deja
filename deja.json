@@ -37,6 +37,9 @@
     ],
     "hidden_prefixes": [],
     "hidden_patterns": [],
+    "redact_environment_variables": [
+      "(?i)(api_?key|access_?key|token|secret|password|passwd|private_?key|client_?secret|credential)"
+    ],
     "redact_flag_values": [
       {
         "command_prefix": "git commit",

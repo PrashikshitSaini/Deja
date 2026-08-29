@@ -7,6 +7,26 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+
+- Automatic, configurable redaction of sensitive environment assignments such
+  as API keys, access tokens, passwords, and client secrets. Display uses a
+  `<redacted>` marker while Tab insertion uses an empty value.
+- A dry-run-first `deja purge` command for atomically deleting exact or
+  literal-matching commands from the Deja store and an optional Zsh history
+  file.
+
+### Safety
+
+- Purge invocations are excluded from live recording and history imports so
+  sensitive match text is not reintroduced after deletion.
+- Zsh history purge preserves symlink paths and aborts if the target changes
+  while its atomic replacement is prepared.
+- Palette display escapes terminal control and bidirectional formatting
+  characters without changing the command returned for insertion.
+- Each interactive shell uses an atomically created, ownership-verified,
+  mode-0700 runtime directory for palette result files.
+
 ## [0.3.1] - 2026-08-23
 
 ### Added

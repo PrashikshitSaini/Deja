@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/PrashikshitSaini/Deja/internal/model"
@@ -94,6 +95,36 @@ func TestRowsUseTerminalSafeRankNumbersForZLE(t *testing.T) {
 	}
 	if strings.Contains(rows[0], "\x1b") || strings.Contains(rows[1], "\x1b") {
 		t.Fatalf("ZLE-safe rows contain ANSI controls: %#v", rows)
+	}
+}
+
+func TestRowsEscapeTerminalControlsAndBidiWithoutChangingInsertion(t *testing.T) {
+	command := "printf '\x1b]52;c;clipboard\x07\tunsafe\u202Etxt'"
+	rows := Rows([]model.Candidate{{Command: command, Uses: 1}}, DefaultOptions(false))
+	if len(rows) != 1 {
+		t.Fatalf("Rows() returned %d rows", len(rows))
+	}
+	for _, character := range rows[0] {
+		if unicode.IsControl(character) || bidiControl(character) {
+			t.Fatalf("unsafe display rune %U remained in %q", character, rows[0])
+		}
+	}
+	for _, escaped := range []string{`\u001B`, `\u0007`, `\u0009`, `\u202E`} {
+		if !strings.Contains(rows[0], escaped) {
+			t.Fatalf("display %q does not contain %q", rows[0], escaped)
+		}
+	}
+
+	results := filepath.Join(t.TempDir(), "results.json")
+	if err := WriteResults(results, []model.Candidate{{Command: command}}); err != nil {
+		t.Fatal(err)
+	}
+	selected, err := ReadResult(results, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selected != command {
+		t.Fatalf("insertion changed from %q to %q", command, selected)
 	}
 }
 

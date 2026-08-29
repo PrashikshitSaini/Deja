@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/PrashikshitSaini/Deja/internal/matcher"
 	"github.com/PrashikshitSaini/Deja/internal/theme"
@@ -48,11 +50,12 @@ type RedactFlagValues struct {
 }
 
 type Commands struct {
-	OnlyFamilies     []string           `json:"only_families"`
-	HiddenFamilies   []string           `json:"hidden_families"`
-	HiddenPrefixes   []string           `json:"hidden_prefixes"`
-	HiddenPatterns   []string           `json:"hidden_patterns"`
-	RedactFlagValues []RedactFlagValues `json:"redact_flag_values"`
+	OnlyFamilies               []string           `json:"only_families"`
+	HiddenFamilies             []string           `json:"hidden_families"`
+	HiddenPrefixes             []string           `json:"hidden_prefixes"`
+	HiddenPatterns             []string           `json:"hidden_patterns"`
+	RedactEnvironmentVariables []string           `json:"redact_environment_variables"`
+	RedactFlagValues           []RedactFlagValues `json:"redact_flag_values"`
 }
 
 type Settings struct {
@@ -60,7 +63,8 @@ type Settings struct {
 	Display  Display  `json:"display"`
 	Commands Commands `json:"commands"`
 
-	hiddenRegex []*regexp.Regexp
+	hiddenRegex            []*regexp.Regexp
+	sensitiveVariableRegex []*regexp.Regexp
 }
 
 func Defaults() Settings {
@@ -87,6 +91,9 @@ func Defaults() Settings {
 		},
 		Commands: Commands{
 			HiddenFamilies: []string{"clear", "exit", "fc", "history", "logout"},
+			RedactEnvironmentVariables: []string{
+				`(?i)(api_?key|access_?key|token|secret|password|passwd|private_?key|client_?secret|credential)`,
+			},
 			RedactFlagValues: []RedactFlagValues{{
 				CommandPrefix:      "git commit",
 				Flags:              []string{"-m", "-am", "--message"},
@@ -200,6 +207,14 @@ func (settings *Settings) Validate() error {
 		}
 		settings.hiddenRegex = append(settings.hiddenRegex, compiled)
 	}
+	settings.sensitiveVariableRegex = settings.sensitiveVariableRegex[:0]
+	for _, pattern := range settings.Commands.RedactEnvironmentVariables {
+		compiled, err := regexp.Compile(pattern)
+		if err != nil {
+			return fmt.Errorf("commands.redact_environment_variables %q: %w", pattern, err)
+		}
+		settings.sensitiveVariableRegex = append(settings.sensitiveVariableRegex, compiled)
+	}
 	for index, rule := range settings.Commands.RedactFlagValues {
 		if len(matcher.Words(rule.CommandPrefix)) == 0 {
 			return fmt.Errorf("commands.redact_flag_values[%d].command_prefix is required", index)
@@ -249,6 +264,7 @@ func hasWordPrefix(words, prefix []string) bool {
 }
 
 var safeShellToken = regexp.MustCompile(`^[A-Za-z0-9_@%+=:,./~-]+$`)
+var environmentAssignmentName = regexp.MustCompile(`^([A-Za-z_][A-Za-z0-9_]*)(?:\+)?$`)
 
 func shellToken(value string) string {
 	if value == "" {
@@ -313,6 +329,136 @@ func rewriteFlagValues(command string, rules []RedactFlagValues, display bool) s
 	return strings.Join(result, " ")
 }
 
+func rewriteEnvironmentValues(command string, patterns []*regexp.Regexp, display bool) (string, bool) {
+	if len(patterns) == 0 {
+		return command, true
+	}
+	type wordSpan struct{ start, end int }
+	type replacement struct {
+		start, end int
+		value      string
+	}
+	words := make([]wordSpan, 0)
+	for index := 0; index < len(command); {
+		character, size := utf8.DecodeRuneInString(command[index:])
+		if unicode.IsSpace(character) || strings.ContainsRune("|&;()<>", character) {
+			index += size
+			continue
+		}
+		start := index
+		var quote rune
+		escaped := false
+		for index < len(command) {
+			character, size = utf8.DecodeRuneInString(command[index:])
+			if escaped {
+				escaped = false
+				index += size
+				continue
+			}
+			if character == '\\' && quote != '\'' {
+				escaped = true
+				index += size
+				continue
+			}
+			if quote != 0 {
+				if character == quote {
+					quote = 0
+				}
+				index += size
+				continue
+			}
+			if character == '\'' || character == '"' {
+				quote = character
+				index += size
+				continue
+			}
+			if unicode.IsSpace(character) || strings.ContainsRune("|&;()<>", character) {
+				break
+			}
+			index += size
+		}
+		words = append(words, wordSpan{start: start, end: index})
+	}
+
+	placeholder := `""`
+	if display {
+		placeholder = "<redacted>"
+	}
+	replacements := make([]replacement, 0)
+	for _, word := range words {
+		raw := command[word.start:word.end]
+		assignment := raw
+		quotedAssignment := len(raw) >= 2 &&
+			((raw[0] == '\'' && raw[len(raw)-1] == '\'') || (raw[0] == '"' && raw[len(raw)-1] == '"'))
+		if quotedAssignment {
+			assignment = raw[1 : len(raw)-1]
+		}
+		if escapedEquals := strings.Index(assignment, `\=`); escapedEquals > 0 {
+			nameGroups := environmentAssignmentName.FindStringSubmatch(assignment[:escapedEquals])
+			if nameGroups != nil {
+				for _, pattern := range patterns {
+					if pattern.MatchString(nameGroups[1]) {
+						return "", false
+					}
+				}
+			}
+		}
+		equals := strings.IndexByte(assignment, '=')
+		if equals > 0 {
+			assignmentName := assignment[:equals]
+			nameCandidate := assignmentName
+			indexed := false
+			if bracket := strings.IndexByte(assignmentName, '['); bracket > 0 {
+				nameCandidate = assignmentName[:bracket]
+				indexed = true
+			}
+			nameGroups := environmentAssignmentName.FindStringSubmatch(nameCandidate)
+			if nameGroups != nil {
+				name := nameGroups[1]
+				for _, pattern := range patterns {
+					if pattern.MatchString(name) {
+						if indexed {
+							return "", false
+						}
+						value := assignment[equals+1:]
+						if strings.Contains(value, "$") || strings.Contains(value, "`") ||
+							strings.Contains(command, "<(") || strings.Contains(command, ">(") ||
+							(value == "" && word.end < len(command) && command[word.end] == '(') {
+							return "", false
+						}
+						if quotedAssignment {
+							replacements = append(replacements, replacement{
+								start: word.start,
+								end:   word.end,
+								value: assignmentName + "=" + placeholder,
+							})
+						} else {
+							replacements = append(replacements, replacement{
+								start: word.start + equals + 1,
+								end:   word.end,
+								value: placeholder,
+							})
+						}
+						break
+					}
+				}
+			}
+		}
+	}
+	if len(replacements) == 0 {
+		return command, true
+	}
+	var result strings.Builder
+	cursor := 0
+	for _, replacement := range replacements {
+		result.WriteString(command[cursor:replacement.start])
+		result.WriteString(replacement.value)
+		cursor = replacement.end
+	}
+	result.WriteString(command[cursor:])
+	return result.String(), true
+}
+
 // Prepare applies visibility and redaction rules. Insert is what Tab returns;
 // display is the safe palette label. An empty display means it equals insert.
 func (settings Settings) Prepare(command, family string) (insert, display string, visible bool) {
@@ -337,6 +483,15 @@ func (settings Settings) Prepare(command, family string) (insert, display string
 
 	insert = rewriteFlagValues(command, settings.Commands.RedactFlagValues, false)
 	display = rewriteFlagValues(command, settings.Commands.RedactFlagValues, true)
+	var safe bool
+	insert, safe = rewriteEnvironmentValues(insert, settings.sensitiveVariableRegex, false)
+	if !safe {
+		return "", "", false
+	}
+	display, safe = rewriteEnvironmentValues(display, settings.sensitiveVariableRegex, true)
+	if !safe {
+		return "", "", false
+	}
 	insert = strings.TrimSpace(insert)
 	display = strings.TrimSpace(display)
 	if display == insert {

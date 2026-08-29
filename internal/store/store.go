@@ -70,6 +70,51 @@ func liveIdentity(command string, occurredAt float64) string {
 	return "run:" + hash(command, strconv.FormatInt(int64(occurredAt), 10))
 }
 
+func purgeInvocation(command string) bool {
+	words := matcher.Words(command)
+	segmentStart := 0
+	for segmentEnd := 0; segmentEnd <= len(words); segmentEnd++ {
+		atBoundary := segmentEnd == len(words)
+		if !atBoundary {
+			atBoundary = len(words[segmentEnd]) == 1 && strings.Contains("|&;()", words[segmentEnd])
+		}
+		if !atBoundary {
+			continue
+		}
+		segment := words[segmentStart:segmentEnd]
+		for len(segment) > 0 {
+			prefix := strings.ToLower(segment[0])
+			if prefix != "if" && prefix != "then" && prefix != "elif" && prefix != "else" &&
+				prefix != "while" && prefix != "until" && prefix != "do" && prefix != "!" && prefix != "{" {
+				break
+			}
+			segment = segment[1:]
+		}
+		if matcher.Family(strings.Join(segment, " ")) == "deja" {
+			for index := 0; index+1 < len(segment); index++ {
+				if strings.EqualFold(filepath.Base(strings.TrimPrefix(segment[index], `\`)), "deja") &&
+					strings.EqualFold(segment[index+1], "purge") {
+					return true
+				}
+			}
+		}
+		segmentStart = segmentEnd + 1
+	}
+	return false
+}
+
+func (store Store) resolved() (Store, error) {
+	path, err := filepath.EvalSymlinks(store.Path)
+	if err == nil {
+		store.Path = path
+		return store, nil
+	}
+	if os.IsNotExist(err) {
+		return store, nil
+	}
+	return Store{}, err
+}
+
 func (store Store) ensureParent() error {
 	parent := filepath.Dir(store.Path)
 	_, statErr := os.Stat(parent)
@@ -143,8 +188,13 @@ func (store Store) loadUnlocked() ([]model.Event, error) {
 }
 
 func (store Store) addUnique(events []model.Event) (int, error) {
+	var err error
+	store, err = store.resolved()
+	if err != nil {
+		return 0, err
+	}
 	added := 0
-	err := store.withLock(true, func() error {
+	err = store.withLock(true, func() error {
 		existing, err := store.loadUnlocked()
 		if err != nil {
 			return err
@@ -182,11 +232,78 @@ func (store Store) addUnique(events []model.Event) (int, error) {
 	return added, err
 }
 
+func (store Store) replaceUnlocked(events []model.Event) error {
+	parent := filepath.Dir(store.Path)
+	temporary, err := os.CreateTemp(parent, ".deja-store-*.jsonl")
+	if err != nil {
+		return err
+	}
+	temporaryName := temporary.Name()
+	defer os.Remove(temporaryName)
+	if err := temporary.Chmod(0o600); err != nil {
+		temporary.Close()
+		return err
+	}
+	writer := bufio.NewWriter(temporary)
+	encoder := json.NewEncoder(writer)
+	for _, event := range events {
+		if err := encoder.Encode(event); err != nil {
+			temporary.Close()
+			return err
+		}
+	}
+	if err := writer.Flush(); err != nil {
+		temporary.Close()
+		return err
+	}
+	if err := temporary.Sync(); err != nil {
+		temporary.Close()
+		return err
+	}
+	if err := temporary.Close(); err != nil {
+		return err
+	}
+	return os.Rename(temporaryName, store.Path)
+}
+
+// PurgeCommands counts matching events and atomically removes them when apply
+// is true. The caller controls matching so exact and substring purges share the
+// same locked rewrite path.
+func (store Store) PurgeCommands(match func(command string) bool, apply bool) (int, error) {
+	if match == nil {
+		return 0, fmt.Errorf("purge matcher is required")
+	}
+	targetStore, err := store.resolved()
+	if err != nil {
+		return 0, err
+	}
+	removed := 0
+	err = targetStore.withLock(apply, func() error {
+		events, err := targetStore.loadUnlocked()
+		if err != nil {
+			return err
+		}
+		kept := make([]model.Event, 0, len(events))
+		for _, event := range events {
+			if match(event.Command) {
+				removed++
+				continue
+			}
+			kept = append(kept, event)
+		}
+		if !apply || removed == 0 {
+			return nil
+		}
+		return targetStore.replaceUnlocked(kept)
+	})
+	return removed, err
+}
+
 func (store Store) Import(entries []history.Entry, source string) (int, error) {
 	events := make([]model.Event, 0, len(entries))
 	for _, entry := range entries {
 		family := matcher.Family(entry.Command)
-		if family == "" {
+		if family == "" || purgeInvocation(entry.Command) {
 			continue
 		}
 		identity := ""
@@ -209,6 +326,9 @@ func (store Store) Record(command, cwd string, exitStatus *int, occurredAt, dura
 	if command == "" || family == "" {
 		return false, nil
 	}
+	if purgeInvocation(command) {
+		return false, nil
+	}
 	if occurredAt <= 0 {
 		occurredAt = float64(time.Now().UnixNano()) / 1e9
 	}
@@ -227,6 +347,11 @@ func (store Store) Search(query, cwd string, limit int) ([]model.Candidate, erro
 func (store Store) SearchWithOptions(query, cwd string, options SearchOptions) ([]model.Candidate, error) {
 	if matcher.Family(query) == "" {
 		return nil, nil
+	}
+	var err error
+	store, err = store.resolved()
+	if err != nil {
+		return nil, err
 	}
 	var events []model.Event
 	if err := store.withLock(false, func() error {
@@ -298,8 +423,13 @@ func (store Store) SearchWithOptions(query, cwd string, options SearchOptions) (
 }
 
 func (store Store) Count() (int, error) {
+	var err error
+	store, err = store.resolved()
+	if err != nil {
+		return 0, err
+	}
 	count := 0
-	err := store.withLock(false, func() error {
+	err = store.withLock(false, func() error {
 		events, err := store.loadUnlocked()
 		count = len(events)
 		return err

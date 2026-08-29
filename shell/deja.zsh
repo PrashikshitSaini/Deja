@@ -3,6 +3,7 @@
 # invokes accept-line; choosing a candidate only replaces the editable buffer.
 
 [[ -o interactive ]] || return 0
+[[ "${_deja_loaded_pid:-}" == "$$" ]] && return 0
 
 typeset -g DEJA_ROOT="${${(%):-%N}:A:h:h}"
 
@@ -28,15 +29,6 @@ typeset -g DEJA_LIMIT="${DEJA_LIMIT:-}"
 if [[ -z "${DEJA_CONFIG:-}" && -r "${DEJA_ROOT}/deja.json" ]]; then
   typeset -gx DEJA_CONFIG="${DEJA_ROOT}/deja.json"
 fi
-# Keep per-session state inside a user-owned directory so the results file is
-# never created in a world-writable location shared with other users.
-typeset -g _deja_state_dir="${TMPDIR:-/tmp}/deja-${UID}"
-[[ -d "${_deja_state_dir}" ]] || command mkdir -m 700 -p -- "${_deja_state_dir}" 2>/dev/null
-if [[ ! -w "${_deja_state_dir}" ]]; then
-  _deja_state_dir="${DEJA_ROOT}/.deja-state"
-  [[ -d "${_deja_state_dir}" ]] || command mkdir -m 700 -p -- "${_deja_state_dir}" 2>/dev/null
-fi
-typeset -g _deja_results_file="${_deja_state_dir}/deja-results-${$}.json"
 typeset -g _deja_pending_command=""
 typeset -g _deja_pending_cwd=""
 typeset -gF _deja_pending_started=0
@@ -58,6 +50,34 @@ if ! "${DEJA_BIN}" config check >/dev/null 2>&1; then
   print -u2 -- "Run: ${DEJA_BIN} config check"
   return 1
 fi
+
+# Atomically create unique per-session state, then verify its ownership and
+# permissions before allowing a results file to influence buffer insertion.
+zmodload zsh/stat 2>/dev/null || {
+  print -u2 -- "Deja: zsh/stat is required for private runtime state"
+  return 1
+}
+typeset _deja_new_state_dir
+_deja_new_state_dir="$(command mktemp -d "${TMPDIR:-/tmp}/deja-${UID}.XXXXXXXX" 2>/dev/null)" || {
+  print -u2 -- "Deja: could not create private runtime state"
+  return 1
+}
+command chmod 700 "${_deja_new_state_dir}" 2>/dev/null || {
+  command rmdir "${_deja_new_state_dir}" 2>/dev/null
+  print -u2 -- "Deja: could not secure private runtime state"
+  return 1
+}
+typeset -A _deja_state_details
+zstat -H _deja_state_details "${_deja_new_state_dir}" 2>/dev/null
+if (( _deja_state_details[uid] != EUID || (_deja_state_details[mode] & 8#777) != 8#700 )); then
+  command rmdir "${_deja_new_state_dir}" 2>/dev/null
+  print -u2 -- "Deja: private runtime state failed ownership or permission checks"
+  return 1
+fi
+unset _deja_state_details
+typeset -gr _deja_state_dir="${_deja_new_state_dir}"
+unset _deja_new_state_dir
+typeset -gr _deja_results_file="${_deja_state_dir}/results.json"
 
 zmodload zsh/datetime 2>/dev/null || true
 zmodload zsh/terminfo 2>/dev/null || true
@@ -254,7 +274,12 @@ function _deja_precmd() {
 }
 
 function _deja_zshexit() {
-  command rm -f -- "${_deja_results_file}" 2>/dev/null
+  local -A details
+  zstat -H details "${_deja_state_dir}" 2>/dev/null || return 0
+  (( details[uid] == EUID && (details[mode] & 8#777) == 8#700 )) || return 0
+  [[ "${_deja_state_dir:t}" == "deja-${UID}."* ]] || return 0
+  command rm -f -- "${_deja_state_dir}/results.json" 2>/dev/null
+  command rmdir "${_deja_state_dir}" 2>/dev/null
 }
 
 zle -N deja-up-or-history _deja_up_or_history
@@ -281,6 +306,7 @@ add-zle-hook-widget line-init _deja_line_init
 add-zsh-hook preexec _deja_preexec
 add-zsh-hook precmd _deja_precmd
 add-zsh-hook zshexit _deja_zshexit
+typeset -gr _deja_loaded_pid="$$"
 
 # Capture command status before other precmd hooks can replace it.
 precmd_functions=(_deja_precmd ${precmd_functions:#_deja_precmd})

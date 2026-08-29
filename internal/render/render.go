@@ -93,7 +93,7 @@ func differingPositions(candidates []model.Candidate) map[int]bool {
 	rows := make([][]string, len(candidates))
 	width := 0
 	for index, candidate := range candidates {
-		rows[index] = matcher.Words(candidate.DisplayCommand())
+		rows[index] = matcher.Words(safeDisplay(candidate.DisplayCommand()))
 		if len(rows[index]) > width {
 			width = len(rows[index])
 		}
@@ -128,6 +128,29 @@ func singleLine(command string) string {
 	return strings.Join(parts, " ↵ ")
 }
 
+func bidiControl(character rune) bool {
+	return character == '\u061c' || character == '\u200e' || character == '\u200f' ||
+		(character >= '\u202a' && character <= '\u202e') ||
+		(character >= '\u2066' && character <= '\u2069')
+}
+
+func safeDisplay(command string) string {
+	command = singleLine(command)
+	var output strings.Builder
+	for _, character := range command {
+		if unicode.IsControl(character) || bidiControl(character) {
+			if character <= 0xffff {
+				fmt.Fprintf(&output, `\u%04X`, character)
+			} else {
+				fmt.Fprintf(&output, `\U%08X`, character)
+			}
+			continue
+		}
+		output.WriteRune(character)
+	}
+	return output.String()
+}
+
 type cellRole uint8
 
 const (
@@ -150,7 +173,7 @@ func appendCells(cells []cell, value string, role cellRole) []cell {
 }
 
 func commandCells(command string, differing map[int]bool, color bool) []cell {
-	display := singleLine(command)
+	display := safeDisplay(command)
 	spans := tokenSpans(display)
 	cells := make([]cell, 0, len([]rune(display)))
 	cursor := 0

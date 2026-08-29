@@ -18,6 +18,7 @@ func usage(writer io.Writer) {
 	fmt.Fprintln(writer, "  record   Record one completed command")
 	fmt.Fprintln(writer, "  query    Find distinct matching command variants")
 	fmt.Fprintln(writer, "  pick     Return a cached selection without executing it")
+	fmt.Fprintln(writer, "  purge    Remove matching commands from local history")
 	fmt.Fprintln(writer, "  config   Initialize, inspect, validate, or explain settings")
 	fmt.Fprintln(writer, "  stats    Show local index statistics")
 	fmt.Fprintln(writer, "  doctor   Check the local Deja environment")
@@ -49,6 +50,9 @@ func run(arguments []string, stdin io.Reader, stdout, stderr io.Writer) int {
 
 	case "pick":
 		return runPick(arguments[1:], stdout, stderr)
+
+	case "purge":
+		return runPurge(arguments[1:], stdin, stdout, stderr)
 
 	case "stats":
 		return runStats(arguments[1:], stdout, stderr)

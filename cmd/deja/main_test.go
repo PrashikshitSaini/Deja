@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/PrashikshitSaini/Deja/internal/config"
+	"github.com/PrashikshitSaini/Deja/internal/history"
 )
 
 func TestCLIImportQueryAndPick(t *testing.T) {
@@ -271,6 +272,40 @@ func TestCLIConfigRedactsAndAggregatesCommitMessages(t *testing.T) {
 	}
 }
 
+func TestCLIQueryRedactsSensitiveEnvironmentValueForDisplayAndPick(t *testing.T) {
+	directory := t.TempDir()
+	storePath := filepath.Join(directory, "history.jsonl")
+	resultsPath := filepath.Join(directory, "results.json")
+	secret := "sk-private-value"
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"record", "--stdin", "--store", storePath},
+		strings.NewReader("export OPENAI_API_KEY="+secret), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("record code = %d, stderr = %q", code, stderr.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	code = run([]string{
+		"query", "--store", storePath, "--results-file", resultsPath, "--format", "plain", "export",
+	}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("query code = %d, stderr = %q", code, stderr.String())
+	}
+	if strings.Contains(stdout.String(), secret) || !strings.Contains(stdout.String(), "OPENAI_API_KEY=<redacted>") {
+		t.Fatalf("query output = %q", stdout.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	code = run([]string{"pick", "--results-file", resultsPath, "--index", "1"},
+		strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("pick code = %d, stderr = %q", code, stderr.String())
+	}
+	if stdout.String() != `export OPENAI_API_KEY=""` {
+		t.Fatalf("selection = %q", stdout.String())
+	}
+}
+
 func TestCLIHonorsConfiguredMinimumQueryLength(t *testing.T) {
 	directory := t.TempDir()
 	storePath := filepath.Join(directory, "history.jsonl")
@@ -294,5 +329,83 @@ func TestCLIHonorsConfiguredMinimumQueryLength(t *testing.T) {
 	}, strings.NewReader(""), &stdout, &stderr)
 	if code != 0 || stdout.Len() != 0 {
 		t.Fatalf("short query code = %d, stdout = %q, stderr = %q", code, stdout.String(), stderr.String())
+	}
+}
+
+func TestCLIPurgeDryRunAndForceAcrossStoreAndZshHistory(t *testing.T) {
+	directory := t.TempDir()
+	storePath := filepath.Join(directory, "history.jsonl")
+	historyPath := filepath.Join(directory, ".zsh_history")
+	secret := `export OPENAI_API_KEY=private`
+	for index, command := range []string{secret, "git status"} {
+		var stdout, stderr bytes.Buffer
+		code := run([]string{
+			"record", "--stdin", "--store", storePath, "--timestamp", strconv.Itoa(100 + index),
+		}, strings.NewReader(command), &stdout, &stderr)
+		if code != 0 {
+			t.Fatalf("record code = %d, stderr = %q", code, stderr.String())
+		}
+	}
+	historyContent := ": 100:1;" + secret + "\n: 101:1;git status\n"
+	if err := os.WriteFile(historyPath, []byte(historyContent), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	arguments := []string{
+		"purge", "--contains", "OPENAI_API_KEY", "--store", storePath, "--history-file", historyPath,
+	}
+	if code := run(arguments, strings.NewReader(""), &stdout, &stderr); code != 0 {
+		t.Fatalf("dry-run code = %d, stderr = %q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "store_matches: 1") || !strings.Contains(stdout.String(), "history_matches: 1") {
+		t.Fatalf("dry-run output = %q", stdout.String())
+	}
+	entries, err := history.ReadZsh(historyPath)
+	if err != nil || len(entries) != 2 {
+		t.Fatalf("history after dry run = %#v, err %v", entries, err)
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	arguments = append(arguments, "--force")
+	if code := run(arguments, strings.NewReader(""), &stdout, &stderr); code != 0 {
+		t.Fatalf("purge code = %d, stderr = %q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "store_removed: 1") || !strings.Contains(stdout.String(), "history_removed: 1") {
+		t.Fatalf("purge output = %q", stdout.String())
+	}
+	entries, err = history.ReadZsh(historyPath)
+	if err != nil || len(entries) != 1 || entries[0].Command != "git status" {
+		t.Fatalf("purged history = %#v, err %v", entries, err)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := run([]string{"stats", "--store", storePath}, strings.NewReader(""), &stdout, &stderr); code != 0 {
+		t.Fatalf("stats code = %d, stderr = %q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "events: 1") {
+		t.Fatalf("stats output = %q", stdout.String())
+	}
+}
+
+func TestCLIPurgeExactFromStdinIgnoringCase(t *testing.T) {
+	storePath := filepath.Join(t.TempDir(), "history.jsonl")
+	command := "printf 'First line\nSecond line'"
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{
+		"record", "--stdin", "--store", storePath, "--timestamp", "100",
+	}, strings.NewReader(command), &stdout, &stderr); code != 0 {
+		t.Fatalf("record code = %d, stderr = %q", code, stderr.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := run([]string{
+		"purge", "--stdin", "--ignore-case", "--force", "--store", storePath,
+	}, strings.NewReader(strings.ToUpper(command)), &stdout, &stderr); code != 0 {
+		t.Fatalf("purge code = %d, stderr = %q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "store_removed: 1") {
+		t.Fatalf("purge output = %q", stdout.String())
 	}
 }

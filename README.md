@@ -76,7 +76,8 @@ choosing one.
   and recency.
 - Highlights tokens that differ between visible variants.
 - Scrolls a viewport through a large ranked candidate pool (up to 100+ rows).
-- Redacts reusable values such as old Git commit messages before display.
+- Redacts sensitive environment assignments and reusable values such as old
+  Git commit messages before display or insertion.
 - Hides commands by family, prefix, or regular expression.
 - Dim rank numbers, ANSI colors, row count, and metadata are configurable.
 - User-private event store, lock, and result files.
@@ -207,8 +208,10 @@ The palette updates as the editable buffer changes.
 - `100% ok` — recorded success rate where exit statuses exist
 - `here` — has been run in the current directory
 
-ZLE sanitizes raw ANSI sequences, so the live palette uses a plain dim rank
-number; the CLI (`deja query --color always`) renders full ANSI colors.
+Deja escapes stored terminal control and bidirectional formatting characters
+before display while preserving the original command for insertion. The live
+palette uses a plain dim rank number; the CLI (`deja query --color always`)
+renders only Deja's own ANSI colors.
 
 ## How ranking works
 
@@ -241,11 +244,12 @@ Key settings (all optional):
 | Setting | Default | Meaning |
 | --- | ---: | --- |
 | `display.limit` | `6` | Visible rows (1–50) |
-| `display.candidate_pool` | `100` | Ranked variants kept for scrolling |
+| `display.candidate_limit` | `100` | Ranked variants kept for scrolling |
 | `display.minimum_uses` | `1` | Hide rare variants |
 | `display.minimum_query_length` | `1` | Keystrokes before the palette opens |
 | `commands.only_families` | `[]` | Allowlist; when set, everything else hides |
 | `commands.hidden_families` / `_prefixes` / `_patterns` | sensible defaults | Filter rules |
+| `commands.redact_environment_variables` | common secret variable names | Redact matching `NAME=value` assignments |
 | `commands.redact_flag_values` | git commit messages | Replace values before display |
 
 Example — hide force pushes and anything carrying a password:
@@ -259,6 +263,31 @@ Example — hide force pushes and anything carrying a password:
 }
 ```
 
+### Sensitive environment assignments
+
+Deja deterministically redacts assignment values when the variable name matches
+one of `commands.redact_environment_variables`. The default case-insensitive
+pattern covers names containing `API_KEY`, `ACCESS_KEY`, `TOKEN`, `SECRET`,
+`PASSWORD`, `PASSWD`, `PRIVATE_KEY`, `CLIENT_SECRET`, or `CREDENTIAL`.
+
+For example:
+
+```text
+export OPENAI_API_KEY=sk-private
+```
+
+is displayed as `export OPENAI_API_KEY=<redacted>`, and Tab inserts
+`export OPENAI_API_KEY=""`. The original value remains in the raw history until
+it is purged. Extend the regex list for organization-specific variable names;
+set it to an empty list only when intentionally disabling this protection.
+Assignments whose values contain dynamic shell syntax, such as command
+substitution or arrays, are hidden entirely when they cannot be safely reduced
+to one redacted token.
+
+Deja does not guess based on value shape or entropy. A secret stored under an
+unrelated variable name or passed as a plain positional argument requires a
+custom redaction rule or purge.
+
 See the full option reference further down in
 [docs](./docs) or via `deja config show`.
 
@@ -267,6 +296,7 @@ See the full option reference further down in
 ```sh
 deja query --format plain --color always git status   # inspect ranked results
 deja import --history-file "$HOME/.zsh_history"       # import existing history
+deja purge --contains OPENAI_API_KEY                  # dry-run a store purge
 deja stats                                            # store summary
 deja doctor                                           # installation health check
 deja config explain -- 'docker login --password x'    # preview redaction/filtering
@@ -275,13 +305,38 @@ deja version
 
 Re-importing history is safe; event identities prevent duplicates.
 
+### Purging commands
+
+`purge` removes matching events from Deja's store and, when explicitly given,
+a Zsh history file. It is a dry run unless `--force` is present:
+
+```zsh
+deja purge --contains OPENAI_API_KEY --history-file "$HISTFILE"
+deja purge --contains OPENAI_API_KEY --history-file "$HISTFILE" --force
+```
+
+Use stdin when the exact command itself contains a secret, so the purge command
+line does not repeat that secret:
+
+```zsh
+print -rn -- 'export OPENAI_API_KEY=sk-private' |
+  deja purge --stdin --history-file "$HISTFILE" --force
+```
+
+`--exact` matches a complete command; `--contains` matches literal text; and
+`--ignore-case` applies to either. Rewrites use atomic replacement and mode
+`0600`, and Deja checks for concurrent changes before replacement. This cannot
+coordinate with another shell writing at the same instant: close other active
+Zsh sessions before purging so they cannot lose a new entry or write a removed
+command back. Purging is irreversible; rotate a disclosed credential first.
+
 ## Data and privacy
 
 - Zero network calls. Zero telemetry. This is structural, not a policy.
 - History lives in a local JSON Lines file with user-only permissions.
 - Commands starting with a space are ignored by the live hook.
-- Display redaction and hidden commands affect what you see, not what your
-  shell's own history file records.
+- Display redaction and hidden commands do not modify raw history. Use
+  `deja purge` when a stored command must be removed.
 - Don't put secrets on command lines; prefer stdin, env files, or keychains —
   that advice predates and outlives any history tool.
 
