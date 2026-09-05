@@ -15,6 +15,7 @@ import (
 
 	"github.com/PrashikshitSaini/Deja/internal/config"
 	"github.com/PrashikshitSaini/Deja/internal/history"
+	"github.com/PrashikshitSaini/Deja/internal/model"
 	"github.com/PrashikshitSaini/Deja/internal/render"
 	"github.com/PrashikshitSaini/Deja/internal/store"
 )
@@ -88,6 +89,14 @@ func runRecord(arguments []string, stdin io.Reader, stderr io.Writer) int {
 }
 
 func runQuery(arguments []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return runQueryWithSearcher(arguments, stdin, stdout, stderr, nil)
+}
+
+type querySearcher interface {
+	SearchWithOptions(string, string, store.SearchOptions) ([]model.Candidate, error)
+}
+
+func runQueryWithSearcher(arguments []string, stdin io.Reader, stdout, stderr io.Writer, searcher querySearcher) int {
 	set := flagSet("deja query", stderr)
 	fromStdin := set.Bool("query-stdin", false, "read the query from stdin")
 	cwd, _ := os.Getwd()
@@ -149,7 +158,10 @@ func runQuery(arguments []string, stdin io.Reader, stdout, stderr io.Writer) int
 	if *visibleRows > 0 {
 		paletteRows = *visibleRows
 	}
-	candidates, err := store.New(*storePath).SearchWithOptions(query, *currentDirectory, store.SearchOptions{
+	if searcher == nil {
+		searcher = store.New(*storePath)
+	}
+	candidates, err := searcher.SearchWithOptions(query, *currentDirectory, store.SearchOptions{
 		Limit:       queryLimit,
 		MinimumUses: settings.Display.MinimumUses,
 		MaxAgeDays:  settings.Display.MaximumAgeDays,

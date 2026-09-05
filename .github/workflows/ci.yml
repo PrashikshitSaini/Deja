@@ -31,3 +31,7 @@ jobs:
         run: sh -n scripts/install.sh && zsh -n shell/deja.zsh
       - name: Shell security test
         run: zsh -dfi -c 'source shell/deja_test.zsh'
+      - name: Shell async query test
+        run: DEJA_TEST_BIN="$PWD/deja" zsh -dfi -c 'source shell/async_test.zsh'
+      - name: Interactive ZLE test
+        run: DEJA_TEST_BIN="$PWD/deja" python3 shell/pty_test.py
