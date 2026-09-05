@@ -362,6 +362,10 @@ func (store Store) SearchWithOptions(query, cwd string, options SearchOptions) (
 		return nil, err
 	}
 
+	return searchEvents(events, query, cwd, options), nil
+}
+
+func searchEvents(events []model.Event, query, cwd string, options SearchOptions) []model.Candidate {
 	familyPrefix := matcher.Family(query)
 	exactFamilyExists := false
 	for _, event := range events {
@@ -419,7 +423,7 @@ func (store Store) SearchWithOptions(query, cwd string, options SearchOptions) (
 		}
 		candidates = append(candidates, *candidate)
 	}
-	return matcher.Rank(candidates, query, cwd, options.Limit, float64(time.Now().UnixNano())/1e9), nil
+	return matcher.Rank(candidates, query, cwd, options.Limit, float64(time.Now().UnixNano())/1e9)
 }
 
 func (store Store) Count() (int, error) {
