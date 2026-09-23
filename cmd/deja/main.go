@@ -47,6 +47,8 @@ func run(arguments []string, stdin io.Reader, stdout, stderr io.Writer) int {
 
 	case "query":
 		return runQuery(arguments[1:], stdin, stdout, stderr)
+	case "query-worker":
+		return runQueryWorker(arguments[1:], stdin, stdout, stderr)
 
 	case "pick":
 		return runPick(arguments[1:], stdout, stderr)

@@ -121,14 +121,8 @@ func TestZshPalettePassesTerminalWidthToNativeRenderer(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(source)
-	if !strings.Contains(text, `--width "${row_width}"`) {
+	if !strings.Contains(text, `"${row_width}"$'\0'"${DEJA_LIMIT}"`) {
 		t.Fatal("Zsh integration must pass the terminal width to Deja")
-	}
-	if !strings.Contains(text, "--color auto") {
-		t.Fatal("Zsh integration must allow configured palette colors")
-	}
-	if !strings.Contains(text, "--zle-meta") || !strings.Contains(text, `--visible-rows "${DEJA_LIMIT}"`) {
-		t.Fatal("Zsh integration must separate the scrolling viewport from the candidate pool")
 	}
 	if !strings.Contains(text, "commands[deja]") {
 		t.Fatal("packaged shell integration must discover a deja binary installed on PATH")

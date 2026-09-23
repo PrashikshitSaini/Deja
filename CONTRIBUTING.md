@@ -34,6 +34,17 @@ TMPDIR="$PWD/.tmp" \
 go build -trimpath -o ./bin/deja ./cmd/deja
 ```
 
+After building, check the shell transports and security regressions:
+
+```zsh
+zsh -dfi -c 'source shell/deja_test.zsh'
+zsh -dfi -c 'source shell/async_test.zsh'
+python3 shell/pty_test.py
+```
+
+The design and benchmark instructions for the session query worker are in
+[docs/QUERY_WORKER.md](docs/QUERY_WORKER.md).
+
 ## Behavioral requirements
 
 - Deja must never bind Enter or invoke Zsh's `accept-line` widget.

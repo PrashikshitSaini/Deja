@@ -7,6 +7,14 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Changed
+
+- The Zsh palette uses a session query worker with a 50ms debounce, keeping
+  history parsing and searching off the line editor's redraw path.
+- Repeated queries reuse an in-memory family index, which reloads when the
+  history store changes. Request IDs prevent late results from replacing a
+  newer palette or its insertion text.
+
 ## [0.3.2] - 2026-08-29
 
 ### Added

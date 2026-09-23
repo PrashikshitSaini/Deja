@@ -77,7 +77,9 @@ fi
 unset _deja_state_details
 typeset -gr _deja_state_dir="${_deja_new_state_dir}"
 unset _deja_new_state_dir
-typeset -gr _deja_results_file="${_deja_state_dir}/results.json"
+typeset -g _deja_results_file="${_deja_state_dir}/results.json"
+typeset -gi _deja_request_id=0
+typeset -g _deja_request_fd="" _deja_response_fd="" _deja_worker_pid=""
 
 zmodload zsh/datetime 2>/dev/null || true
 zmodload zsh/terminfo 2>/dev/null || true
@@ -89,6 +91,77 @@ function _deja_clear_palette() {
   _deja_window_start=1
   _deja_window_end=1
   zle -M -- ""
+}
+
+function _deja_stop_worker() {
+  emulate -L zsh
+  if [[ -n "${_deja_response_fd}" ]]; then
+    zle -F "${_deja_response_fd}" 2>/dev/null
+    exec {_deja_response_fd}<&-
+    _deja_response_fd=""
+  fi
+  if [[ -n "${_deja_request_fd}" ]]; then
+    exec {_deja_request_fd}>&-
+    _deja_request_fd=""
+  fi
+  if [[ "${_deja_worker_pid}" == <-> ]] && (( _deja_worker_pid > 1 )); then
+    kill "${_deja_worker_pid}" 2>/dev/null
+    wait "${_deja_worker_pid}" 2>/dev/null
+    _deja_worker_pid=""
+  fi
+  return 0
+}
+
+function _deja_start_worker() {
+  emulate -L zsh
+  setopt localoptions no_monitor no_notify
+  [[ -n "${_deja_worker_pid}" ]] && return 0
+  local fifo="${_deja_state_dir}/requests.pipe"
+  [[ -p "${fifo}" ]] || command mkfifo -m 600 "${fifo}" || return 1
+  local responses="${_deja_state_dir}/responses.pipe"
+  [[ -p "${responses}" ]] || command mkfifo -m 600 "${responses}" || return 1
+  exec {_deja_request_fd}<>"${fifo}" || return 1
+  (
+    exec {_deja_request_fd}>&-
+    exec "${DEJA_BIN}" query-worker --state-dir "${_deja_state_dir}" <"${fifo}" >"${responses}" 2>/dev/null
+  ) &
+  _deja_worker_pid=$!
+  exec {_deja_response_fd}<"${responses}"
+  zle -F -w "${_deja_response_fd}" deja-query-ready
+}
+
+function _deja_query_ready() {
+  emulate -L zsh
+  if [[ -n "${2:-}" ]]; then
+    _deja_stop_worker
+    _deja_clear_palette
+    return
+  fi
+  local id result_code
+  if ! IFS=' ' read -r -u "$1" id result_code; then
+    _deja_stop_worker
+    _deja_clear_palette
+    return
+  fi
+  [[ "${id}" == <-> ]] || return
+  local prefix="${_deja_state_dir}/${id}"
+  if [[ "${id}" != "${_deja_request_id}" || "${BUFFER}" != "${_deja_last_buffer}" || ${_deja_suppressed} != 0 || "${result_code}" != 0 ]]; then
+    command rm -f -- "${prefix}.rows" "${prefix}.json"
+    return
+  fi
+  local output=""
+  [[ -r "${prefix}.rows" ]] && output="$(<"${prefix}.rows")"
+  command rm -f -- "${prefix}.rows" "${_deja_results_file}"
+  _deja_results_file="${prefix}.json"
+  local -a output_lines
+  output_lines=("${(@f)output}")
+  _deja_candidate_lines=()
+  if [[ "${output_lines[1]:-}" == $'__DEJA_META__\t'<-> ]]; then
+    _deja_visible_rows="${output_lines[1]##*$'\t'}"
+    _deja_candidate_lines=("${output_lines[@]:1}")
+  fi
+  _deja_render_palette
+  zle -R
 }
 
 function _deja_update_window() {
@@ -154,36 +227,19 @@ function _deja_refresh_palette() {
     _deja_selected=1
     _deja_window_start=1
 
+    (( _deja_request_id++ ))
+    _deja_clear_palette
     if [[ -z "${BUFFER//[[:space:]]/}" ]]; then
-      _deja_clear_palette
       return
     fi
 
-    local output
+    _deja_start_worker || return
     local row_width=$(( COLUMNS > 8 ? COLUMNS - 4 : 0 ))
-    local -a query_arguments
-    query_arguments=(
-      query --query-stdin --cwd "${PWD}" --results-file "${_deja_results_file}"
-      --format zle --color auto --width "${row_width}" --zle-meta
-    )
-    [[ -n "${DEJA_LIMIT}" ]] && query_arguments+=(--visible-rows "${DEJA_LIMIT}")
-    output="$(
-      print -rn -- "${BUFFER}" |
-        "${DEJA_BIN}" "${query_arguments[@]}" 2>/dev/null
-    )"
-    if [[ -n "${output}" ]]; then
-      local -a output_lines
-      output_lines=("${(@f)output}")
-      if [[ "${output_lines[1]}" == $'__DEJA_META__\t'<-> ]]; then
-        _deja_visible_rows="${output_lines[1]##*$'\t'}"
-        _deja_candidate_lines=("${output_lines[@]:1}")
-      else
-        _deja_candidate_lines=("${output_lines[@]}")
-      fi
-    else
-      _deja_candidate_lines=()
-    fi
-    _deja_render_palette
+    # The worker debounces these small notifications for 50ms. Query text is
+    # kept off the pipe so a long pasted command cannot fill its buffer.
+    print -rn -- "${BUFFER}"$'\0'"${PWD}"$'\0'"${row_width}"$'\0'"${DEJA_LIMIT}" \
+      >| "${_deja_state_dir}/${_deja_request_id}.request"
+    print -r -- "${_deja_request_id}" >&${_deja_request_fd}
   } always {
     _deja_refreshing=0
   }
@@ -274,17 +330,20 @@ function _deja_precmd() {
 }
 
 function _deja_zshexit() {
+  _deja_stop_worker
   local -A details
   zstat -H details "${_deja_state_dir}" 2>/dev/null || return 0
   (( details[uid] == EUID && (details[mode] & 8#777) == 8#700 )) || return 0
   [[ "${_deja_state_dir:t}" == "deja-${UID}."* ]] || return 0
-  command rm -f -- "${_deja_state_dir}/results.json" 2>/dev/null
+  command rm -f -- "${_deja_state_dir}/results.json" "${_deja_state_dir}/requests.pipe" "${_deja_state_dir}/responses.pipe" \
+    "${_deja_state_dir}"/<->.(request|rows|json)(N) 2>/dev/null
   command rmdir "${_deja_state_dir}" 2>/dev/null
 }
 
 zle -N deja-up-or-history _deja_up_or_history
 zle -N deja-down-or-history _deja_down_or_history
 zle -N deja-insert-selection _deja_insert_selection
+zle -N deja-query-ready _deja_query_ready
 
 for _deja_keymap in main emacs viins; do
   bindkey -M "${_deja_keymap}" '^[[A' deja-up-or-history

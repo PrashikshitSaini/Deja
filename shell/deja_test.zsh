@@ -14,6 +14,8 @@ export TMPDIR="${test_root}"
 export DEJA_BIN="${commands[true]}"
 unset HISTFILE
 
+command mkdir "${test_root}/deja-${UID}"
+print -r -- untouched > "${test_root}/deja-${UID}/marker"
 source "${script_dir}/deja.zsh" || exit 1
 
 [[ "${_deja_state_dir}" == "${test_root}/deja-${UID}."* ]] || exit 1
@@ -28,5 +30,6 @@ zstat -H details "${_deja_state_dir}" || exit 1
 typeset state_dir="${_deja_state_dir}"
 _deja_zshexit
 [[ ! -e "${state_dir}" ]] || exit 1
+[[ "$(<"${test_root}/deja-${UID}/marker")" == untouched ]] || exit 1
 
 print -r -- "private runtime state: ok"
