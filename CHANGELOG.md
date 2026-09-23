@@ -7,6 +7,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-09-23
+
 ### Changed
 
 - The Zsh palette uses a session query worker with a 50ms debounce, keeping
@@ -14,6 +16,13 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Repeated queries reuse an in-memory family index, which reloads when the
   history store changes. Request IDs prevent late results from replacing a
   newer palette or its insertion text.
+
+### Thanks
+
+- Thanks to [@0xkaushik-ai](https://github.com/0xkaushik-ai) for identifying
+  the typing-latency issue in [#1](https://github.com/PrashikshitSaini/Deja/issues/1)
+  and implementing the async query worker, session index, and regression tests
+  in [#2](https://github.com/PrashikshitSaini/Deja/pull/2).
 
 ## [0.3.2] - 2026-08-29
 
@@ -102,7 +111,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Empty-prompt Up/Down behavior falls back to native Zsh history navigation.
 - Commands beginning with a space are excluded from live recording.
 
-[Unreleased]: https://github.com/PrashikshitSaini/Deja/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/PrashikshitSaini/Deja/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/PrashikshitSaini/Deja/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/PrashikshitSaini/Deja/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/PrashikshitSaini/Deja/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/PrashikshitSaini/Deja/releases/tag/v0.3.0

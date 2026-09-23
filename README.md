@@ -55,7 +55,8 @@ leaving the prompt. It combines:
   never binds Enter and never executes the selection.
 - **A deliberately small local architecture.** One static Go binary, one Zsh
   integration, and a user-owned JSON Lines store. There is no runtime network
-  behavior or telemetry.
+  behavior or telemetry. Each active shell uses a background query worker with
+  an in-memory index, keeping history searches off the typing path.
 
 Use Atuin when encrypted history sync across machines is the priority. Use fzf
 when you want a programmable fuzzy finder for history, files, and other data.
@@ -125,7 +126,7 @@ source "$HOME/.local/share/deja/shell/deja.zsh"
 To pin a version instead of the latest release:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/PrashikshitSaini/Deja/main/scripts/get.sh | DEJA_VERSION=v0.3.2 sh
+curl -fsSL https://raw.githubusercontent.com/PrashikshitSaini/Deja/main/scripts/get.sh | DEJA_VERSION=v0.3.3 sh
 ```
 
 > **Note:** piping curl to sh runs third-party code with your user's
@@ -139,12 +140,12 @@ Download the archive for your platform from
 verify it against `checksums.txt`, then:
 
 ```sh
-tar -xzf deja-v0.3.2-darwin-arm64.tar.gz
-cd deja-v0.3.2-darwin-arm64
+tar -xzf deja-v0.3.3-darwin-arm64.tar.gz
+cd deja-v0.3.3-darwin-arm64
 ./install.sh
 ```
 
-Available archives: `deja-v0.3.2-{darwin,linux}-{arm64,amd64}.tar.gz`.
+Available archives: `deja-v0.3.3-{darwin,linux}-{arm64,amd64}.tar.gz`.
 
 ### Build from source
 
@@ -185,7 +186,8 @@ Type part of a command without pressing Enter:
 git
 ```
 
-The palette updates as the editable buffer changes.
+The palette updates asynchronously after a 50 ms pause in typing. Your
+keystrokes do not wait for history searches to finish.
 
 | Key | With Deja results | Without Deja results |
 | --- | --- | --- |
@@ -370,6 +372,13 @@ Bug reports and pull requests are welcome — see
 [CONTRIBUTING.md](./CONTRIBUTING.md). Release engineering lives in
 [docs/RELEASING.md](./docs/RELEASING.md). CI builds and tests on macOS and
 Linux for every push.
+
+### Contributor thanks
+
+Thanks to [@0xkaushik-ai](https://github.com/0xkaushik-ai) for identifying the
+typing-latency problem in [#1](https://github.com/PrashikshitSaini/Deja/issues/1)
+and contributing the async query worker, session index, and regression tests in
+[#2](https://github.com/PrashikshitSaini/Deja/pull/2).
 
 ## License
 

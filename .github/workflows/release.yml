@@ -29,4 +29,4 @@ jobs:
           files: |
             dist/*.tar.gz
             dist/checksums-*.txt
-          generate_release_notes: true
+          body_path: RELEASE_NOTES.md
